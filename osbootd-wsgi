@@ -1,0 +1,47 @@
+#!/usr/bin/python
+
+"""Serve operating system boot images"""
+
+import logging
+import argparse
+import os
+
+import osbootd
+
+logging.basicConfig(level=logging.INFO)
+
+DEBUG_PORT = 5000
+
+# Parse command-line arguments
+parser = argparse.ArgumentParser(
+    description='Serve operating system boot images'
+    )
+parser.add_argument(
+    '-r', '--root',
+    default=os.environ.get('OSBOOTD_ROOT', '/var/lib/tftpboot'),
+    help="Root directory"
+    )
+parser.add_argument(
+    '-p', '--port', type=int,
+    default=os.environ.get('OSBOOTD_PORT', DEBUG_PORT),
+    help="Listening port (debug only)"
+    )
+parser.add_argument(
+    '-d', '--debug', action='store_true',
+    default=os.environ.get('OSBOOTD_DEBUG', False),
+    help="Debug level"
+    )
+args = parser.parse_args()
+
+# Configure logging
+if args.debug:
+    logging.root.setLevel(logging.DEBUG)
+
+# Construct application
+application = osbootd.wsgi.Application(args.root)
+
+# Allow standalone invocation for debugging
+if __name__ == '__main__':
+    from werkzeug.serving import run_simple
+    run_simple('localhost', args.port, application, use_debugger=True,
+               use_reloader=True)

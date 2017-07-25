@@ -1,0 +1,61 @@
+"""A Red Hat distribution (including derivatives)"""
+
+import logging
+from cStringIO import StringIO
+from ConfigParser import ConfigParser
+
+from cachetools.func import lru_cache
+from werkzeug.wrappers import Response
+from osbootd.distro import Distro
+
+logger = logging.getLogger(__name__)
+
+
+class RedHatDistro(Distro):
+    """A Red Hat distribution (including derivatives)"""
+
+    @classmethod
+    def autodetect(cls, tree):
+        """Autodetect a distribution tree"""
+        return tree.exists('.treeinfo')
+
+    @lru_cache()
+    def readinfo(self, filename):
+        """Read a .INI format configuration file"""
+        info = ConfigParser()
+        info.readfp(StringIO(self.tree.read(filename)))
+        return info
+
+    @property
+    def treeinfo(self):
+        """Read product metadata treeinfo file"""
+        return self.readinfo('.treeinfo')
+
+    @property
+    def name(self):
+        """Get distribution name"""
+        if self.treeinfo.has_section('release'):
+            return self.treeinfo.get('release', 'name')
+        else:
+            return self.treeinfo.get('general', 'family')
+
+    @property
+    def version(self):
+        """Get distribution version"""
+        if self.treeinfo.has_section('release'):
+            return self.treeinfo.get('release', 'version')
+        else:
+            return self.treeinfo.get('general', 'version')
+
+    def ep_boot_script(self, _request, urls):
+        """Generate boot script"""
+        repo = urls.build(self.ep_file, {'path': ''}, force_external=True)
+        script = ''.join(x + '\n' for x in (
+            "#!ipxe",
+            "kernel images/pxeboot/vmlinuz initrd=initrd.img repo=%(repo)s",
+            "initrd images/pxeboot/initrd.img",
+            "boot",
+            )) % {
+                'repo': repo,
+            }
+        return Response(script, content_type='text/plain')
