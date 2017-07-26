@@ -17,6 +17,8 @@ parser = argparse.ArgumentParser(
     )
 parser.add_argument('-r', '--root', default=osbootd.distro.DEFAULT_ROOT,
                     help="Root directory")
+parser.add_argument('-n', '--name', default='',
+                    help="Server name (debug only)")
 parser.add_argument('-p', '--port', type=int, default=DEBUG_PORT,
                     help="Listening port (debug only)")
 parser.add_argument('-d', '--debug', action='store_true', default=False,
@@ -33,5 +35,5 @@ application = osbootd.wsgi.Application()
 # Allow standalone invocation for debugging
 if __name__ == '__main__':
     from werkzeug.serving import run_simple
-    run_simple('localhost', args.port, application.distros(root=args.root),
+    run_simple(args.name, args.port, application.distros(root=args.root),
                use_debugger=True, use_reloader=True)
