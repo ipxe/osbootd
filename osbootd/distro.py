@@ -41,6 +41,7 @@ class Distro(object):
         """Construct routing rules"""
         rules = [
             Rule('/boot.ipxe', endpoint=self.ep_boot_ipxe),
+            Rule('/', endpoint=self.ep_boot_ipxe),
             Rule('/<path:path>', endpoint=self.ep_file,
                  build_only=(not hasattr(self.tree, 'ep_file'))),
             ]
