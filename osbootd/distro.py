@@ -5,10 +5,14 @@ import logging
 import os
 
 from werkzeug.exceptions import NotFound
-from werkzeug.routing import Rule
+from werkzeug.routing import Map, Rule, Submount
+from werkzeug.wrappers import Request
+from werkzeug.wsgi import SharedDataMiddleware
 from osbootd.tree import RawTree, IsoTree
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_ROOT = '/var/lib/tftpboot'
 
 
 class Distro(object):
@@ -51,27 +55,53 @@ class Distro(object):
         """Generate boot script"""
         raise NotFound()
 
+    @classmethod
+    def autoclass(cls, tree):
+        """Autodetect distribution class"""
+        def subclasses(parent):
+            """Identify all subclasses depth-first"""
+            for child in parent.__subclasses__():
+                subclasses(child)
+                yield child
+        for subclass in subclasses(cls):
+            if subclass.autodetect(tree):
+                return subclass
+        return None
 
-def autodetect(tree):
-    """Autodetect distribution class"""
-    def subclasses(cls):
-        """Identify all subclasses depth-first"""
-        for subclass in cls.__subclasses__():
-            subclasses(subclass)
-            yield subclass
-    for cls in subclasses(Distro):
-        if cls.autodetect(tree):
-            return cls
-    return None
 
+class Distros(object):
+    """A collection of operating system distributions"""
 
-def walk(root):
-    """Autodetect distributions within a filesystem hierarchy"""
-    for base, _subdir, files in os.walk(root):
-        isos = (IsoTree(os.path.join(base, x))
-                for x in files if x.lower().endswith(".iso"))
-        trees = chain([RawTree(base)], isos)
-        for tree in trees:
-            cls = autodetect(tree)
-            if cls is not None:
-                yield cls(tree)
+    @staticmethod
+    def walk(root, baseclass=Distro):
+        """Autodetect distributions within a filesystem hierarchy"""
+        for base, _subdir, files in os.walk(root):
+            isos = (IsoTree(os.path.join(base, x))
+                    for x in files if x.lower().endswith(".iso"))
+            trees = chain([RawTree(base)], isos)
+            for tree in trees:
+                cls = baseclass.autoclass(tree)
+                if cls is not None:
+                    yield cls(tree)
+
+    def __init__(self, root=DEFAULT_ROOT, baseclass=Distro):
+        logger.info("Searching %s", root)
+        rules = []
+        for distro in self.walk(root, baseclass):
+            path = os.path.splitext(os.path.relpath(distro.tree.root, root))[0]
+            logger.info("Found %s %s at %s", distro.name, distro.version, path)
+            rules.append(Submount('/%s' % path, distro.rules))
+        rules.append(Rule('/<path:path>', endpoint=self.ep_static))
+        self.urlmap = Map(rules)
+        self.static = SharedDataMiddleware(NotFound(), {'/': root})
+
+    def ep_static(self, _request, _urls, **_kwargs):
+        """Get static file"""
+        return self.static
+
+    @Request.application
+    def __call__(self, request):
+        """Dispatch WSGI request"""
+        urls = self.urlmap.bind_to_environ(request)
+        dispatcher = lambda endpoint, args: endpoint(request, urls, **args)
+        return urls.dispatch(dispatcher, catch_http_exceptions=True)
