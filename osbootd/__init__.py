@@ -3,4 +3,5 @@
 from osbootd import tree
 from osbootd import distro
 from osbootd import redhat
+from osbootd import ubuntu
 from osbootd import wsgi
