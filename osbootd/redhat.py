@@ -49,13 +49,12 @@ class RedHatDistro(Distro):
 
     def ep_boot_ipxe(self, _request, urls):
         """Generate iPXE boot script"""
-        repo = urls.build(self.ep_file, {'path': ''}, force_external=True)
         script = ''.join(x + '\n' for x in (
             "#!ipxe",
             "kernel images/pxeboot/vmlinuz initrd=initrd.img repo=%(repo)s",
             "initrd images/pxeboot/initrd.img",
             "boot",
             )) % {
-                'repo': repo,
+                'repo': self.url(urls),
             }
         return Response(script, content_type='text/plain')

@@ -56,6 +56,10 @@ class Distro(object):
         """Generate iPXE boot script"""
         raise NotFound()
 
+    def url(self, urls, path=''):
+        """Calculate URL to distribution"""
+        return urls.build(self.ep_file, {'path': path}, force_external=True)
+
     @classmethod
     def autoclass(cls, tree):
         """Autodetect distribution class"""
