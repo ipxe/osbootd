@@ -40,7 +40,7 @@ class Distro(object):
     def rules(self):
         """Construct routing rules"""
         rules = [
-            Rule('/boot.ipxe', endpoint=self.ep_boot_script),
+            Rule('/boot.ipxe', endpoint=self.ep_boot_ipxe),
             Rule('/<path:path>', endpoint=self.ep_file,
                  build_only=(not hasattr(self.tree, 'ep_file'))),
             ]
@@ -51,8 +51,8 @@ class Distro(object):
         return self.tree.ep_file(request, urls, path=path)
 
     @staticmethod
-    def ep_boot_script(_request, _urls):
-        """Generate boot script"""
+    def ep_boot_ipxe(_request, _urls):
+        """Generate iPXE boot script"""
         raise NotFound()
 
     @classmethod

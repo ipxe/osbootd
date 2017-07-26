@@ -47,8 +47,8 @@ class RedHatDistro(Distro):
         else:
             return self.treeinfo.get('general', 'version')
 
-    def ep_boot_script(self, _request, urls):
-        """Generate boot script"""
+    def ep_boot_ipxe(self, _request, urls):
+        """Generate iPXE boot script"""
         repo = urls.build(self.ep_file, {'path': ''}, force_external=True)
         script = ''.join(x + '\n' for x in (
             "#!ipxe",
