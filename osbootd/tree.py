@@ -175,7 +175,8 @@ class IsoFile(object):
         the WSGI application if the WSGI gateway provides no
         file_wrapper method.
         """
-        logger.warning('sendfile() is not enabled')
+        if self.offset == 0:
+            logger.warning('sendfile() is not enabled')
         with self.lock:
             self.fh.seek(self.start + self.offset)
             remaining = (self.size - self.offset)
