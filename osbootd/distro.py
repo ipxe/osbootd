@@ -66,7 +66,8 @@ class Distro(object):
         def subclasses(parent):
             """Identify all subclasses depth-first"""
             for child in parent.__subclasses__():
-                subclasses(child)
+                for grandchild in subclasses(child):
+                    yield grandchild
                 yield child
         for subclass in subclasses(cls):
             if subclass.autodetect(tree):
