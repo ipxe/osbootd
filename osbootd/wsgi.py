@@ -4,7 +4,7 @@ import logging
 
 from cachetools.func import lru_cache
 from werkzeug.wrappers import Request
-import osbootd
+import osbootd.distro
 
 logger = logging.getLogger(__name__)
 
