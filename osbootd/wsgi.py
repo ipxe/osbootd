@@ -12,8 +12,9 @@ logger = logging.getLogger(__name__)
 class Application(object):
     """A WSGI application serving up operating system boot images"""
 
+    @staticmethod
     @lru_cache()
-    def distros(self, **kwargs):
+    def distros(**kwargs):
         """Launch application
 
         Launch an application configured using the osbootd.*
