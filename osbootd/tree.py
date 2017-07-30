@@ -4,17 +4,20 @@ Provide an abstraction of a directory tree (either a raw filesystem or
 an ISO image).
 """
 
+import errno
 import logging
 import mimetypes
 import os
 import threading
 import zlib
 from datetime import datetime
+from stat import S_ISDIR, S_ISLNK
 from time import time
 
 import iso9660
 import pyiso9660
 import pycdio
+from glob2 import Globber
 from werkzeug.exceptions import NotFound, Forbidden
 from werkzeug.http import is_resource_modified, http_date
 from werkzeug.wrappers import BaseResponse
@@ -25,19 +28,65 @@ logger = logging.getLogger(__name__)
 CACHE_MAX_AGE = (60 * 60 * 12)
 
 
-class DirectoryTree(object):
+class FileNotFoundError(OSError, IOError):
+    """Exception representing a nonexistent file or directory
+
+    Some callers check for OSError, others for IOError.  This messy
+    situation was resolved in PEP3151 for Python 3.3, but a workaround
+    is required for earlier versions.
+    """
+
+
+class DirectoryTree(Globber):
     """An abstract directory tree"""
 
     def __init__(self, root):
         self.root = root
 
+    @staticmethod
+    def listdir(path):
+        """List directory contents"""
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
+
+    @staticmethod
+    def exists(_path):
+        """Check existence of a path"""
+        return False
+
+    @staticmethod
+    def isdir(_path):
+        """Check if path is a directory"""
+        return False
+
+    @staticmethod
+    def islink(_path):
+        """Check if path is a symbolic link"""
+        return False
+
+    @staticmethod
+    def read(path):
+        """Read a (small) file"""
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
+
 
 class RawTree(DirectoryTree):
     """A directory tree within a raw filesystem"""
 
+    def listdir(self, path):
+        """List directory contents"""
+        return os.listdir(os.path.join(self.root, path))
+
     def exists(self, path):
-        """Check existence of a file"""
+        """Check existence of a path"""
         return os.path.exists(os.path.join(self.root, path))
+
+    def isdir(self, path):
+        """Check if path is a directory"""
+        return S_ISDIR(os.stat(os.path.join(self.root, path)).st_mode)
+
+    def islink(self, path):
+        """Check if path is a symbolic link"""
+        return S_ISLNK(os.stat(os.path.join(self.root, path)).st_mode)
 
     def read(self, path):
         """Read a (small) file"""
@@ -70,17 +119,42 @@ class IsoTree(DirectoryTree):
                 stat = self.iso.stat(path)
             except TypeError:
                 stat = None # Work around a bug in iso9660.py
+        if stat is None:
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT),
+                                    path)
         return stat
 
+    def listdir(self, path):
+        """List directory contents"""
+        dents = self.iso.readdir(path)
+        if dents is None:
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT),
+                                    path)
+        return (x[0] for x in dents)
+
     def exists(self, path):
-        """Check existence of a file"""
-        return self.isostat(path) is not None
+        """Check existence of a path"""
+        try:
+            self.isostat(path)
+            return True
+        except EnvironmentError as e:
+            if e.errno != errno.ENOENT:
+                raise
+        return False
+
+    def isdir(self, path):
+        """Check if path is a directory"""
+        stat = self.isostat(path)
+        return stat['is_dir']
+
+    @staticmethod
+    def islink(_path):
+        """Check if path is a symbolic link"""
+        return False
 
     def read(self, path):
         """Read a (small) file"""
         stat = self.isostat(path)
-        if stat is None:
-            raise IOError("No such ISO file or directory: '%s'" % path)
         with self.lock:
             _psize, data = self.iso.seek_read(stat['LSN'], stat['sec_size'])
         return data[:stat['size']]
