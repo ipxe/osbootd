@@ -7,12 +7,12 @@ from cStringIO import StringIO
 
 from cachetools.func import lru_cache
 from werkzeug.wrappers import Response
-from osbootd.distro import Distro
+from osbootd.debian import DebianDistro
 
 logger = logging.getLogger(__name__)
 
 
-class UbuntuDistro(Distro):
+class UbuntuDistro(DebianDistro):
     """An Ubuntu distribution"""
 
     @classmethod
