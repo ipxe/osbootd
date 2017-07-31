@@ -25,6 +25,6 @@ class Application(object):
     @Request.application
     def __call__(self, request):
         kwargs = {k.split('.', 1)[1]: v
-                  for k, v in request.environ.iteritems()
+                  for k, v in request.environ.items()
                   if k.startswith('osbootd.')}
         return self.distros(**kwargs)
