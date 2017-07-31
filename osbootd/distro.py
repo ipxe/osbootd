@@ -6,7 +6,7 @@ import os
 
 from werkzeug.exceptions import NotFound
 from werkzeug.routing import Map, Rule, Submount
-from werkzeug.wrappers import Request
+from werkzeug.wrappers import Request, Response
 from werkzeug.wsgi import SharedDataMiddleware
 from osbootd.tree import RawTree, IsoTree
 
@@ -92,18 +92,44 @@ class Distros(object):
 
     def __init__(self, root=DEFAULT_ROOT, baseclass=Distro):
         logger.info("Searching %s", root)
-        rules = []
+        self.distros = {}
         for distro in self.walk(root, baseclass):
             path = os.path.splitext(os.path.relpath(distro.tree.root, root))[0]
             logger.info("Found %s %s at %s", distro.name, distro.version, path)
-            rules.append(Submount('/%s' % path, distro.rules))
-        rules.append(Rule('/<path:path>', endpoint=self.ep_static))
+            self.distros[path] = distro
+        rules = chain(
+            (
+                Submount(('/%s' % path), distro.rules)
+                for path, distro in self.distros.items()
+            ), (
+                Rule('/menu.ipxe', endpoint=self.ep_menu_ipxe),
+                Rule('/<path:path>', endpoint=self.ep_static),
+            ))
         self.urlmap = Map(rules)
         self.static = SharedDataMiddleware(NotFound(), {'/': root})
 
     def ep_static(self, _request, _urls, **_kwargs):
         """Get static file"""
         return self.static
+
+    def ep_menu_ipxe(self, _request, _urls):
+        """Generate iPXE menu script"""
+        script = ''.join(x + '\n' for x in chain(
+            (
+                "#!ipxe",
+                "menu Operating System Boot Images",
+            ), (
+                "item %(path)s %(name)s %(version)s" % {
+                    'path': path,
+                    'name': distro.name,
+                    'version': distro.version,
+                }
+                for path, distro in sorted(self.distros.items())
+            ), (
+                "choose distro",
+                "chain -a ${distro}/boot.ipxe"
+            )))
+        return Response(script, content_type='text/plain')
 
     @Request.application
     def __call__(self, request):
