@@ -107,13 +107,13 @@ class IsoTree(DirectoryTree):
         """Find file within ISO image"""
         with self.lock:
             try:
-                stat = self.iso.stat(path)
+                isostat = self.iso.stat(path)
             except TypeError:
-                stat = None # Work around a bug in iso9660.py
-        if stat is None:
+                isostat = None # Work around a bug in iso9660.py
+        if isostat is None:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT),
                                     path)
-        return stat
+        return isostat
 
     def listdir(self, path):
         """List directory contents"""
@@ -135,8 +135,8 @@ class IsoTree(DirectoryTree):
 
     def isdir(self, path):
         """Check if path is a directory"""
-        stat = self.isostat(path)
-        return stat['is_dir']
+        isostat = self.isostat(path)
+        return isostat['is_dir']
 
     @staticmethod
     def islink(_path):
@@ -145,10 +145,10 @@ class IsoTree(DirectoryTree):
 
     def read(self, path):
         """Read a (small) file"""
-        stat = self.isostat(path)
+        isostat = self.isostat(path)
         with self.lock:
-            self.fh.seek(stat['LSN'] * pycdio.ISO_BLOCKSIZE)
-            return self.fh.read(stat['size'])
+            self.fh.seek(isostat['LSN'] * pycdio.ISO_BLOCKSIZE)
+            return self.fh.read(isostat['size'])
 
     def ep_file(self, request, _urls, path=''):
         """Read a file via WSGI"""
@@ -165,15 +165,15 @@ class IsoTree(DirectoryTree):
             return BaseResponse(status=304, headers=headers)
 
         # Check for nonexistent files and for directories
-        stat = self.isostat(path)
-        if stat is None:
+        isostat = self.isostat(path)
+        if isostat is None:
             raise NotFound()
-        if stat['is_dir']:
+        if isostat['is_dir']:
             raise Forbidden()
 
         # Construct file-like object
-        start = (stat['LSN'] * pycdio.ISO_BLOCKSIZE)
-        size = stat['size']
+        start = (isostat['LSN'] * pycdio.ISO_BLOCKSIZE)
+        size = isostat['size']
         filelike = IsoFile(self.fh, start, size, self.lock)
         wrapped = wrap_file(request.environ, filelike)
 
