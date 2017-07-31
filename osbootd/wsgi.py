@@ -1,8 +1,8 @@
 """WSGI application"""
 
+import functools
 import logging
 
-from cachetools.func import lru_cache
 from werkzeug.wrappers import Request
 import osbootd.distro
 
@@ -13,7 +13,7 @@ class Application(object):
     """A WSGI application serving up operating system boot images"""
 
     @staticmethod
-    @lru_cache()
+    @functools.lru_cache()
     def distros(**kwargs):
         """Launch application
 

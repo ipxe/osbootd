@@ -1,10 +1,9 @@
 """A Red Hat distribution (including derivatives)"""
 
+import configparser
+import functools
 import logging
-from cStringIO import StringIO
-from ConfigParser import ConfigParser
 
-from cachetools.func import lru_cache
 from werkzeug.wrappers import Response
 from osbootd.distro import Distro
 
@@ -19,11 +18,11 @@ class RedHatDistro(Distro):
         """Autodetect a distribution tree"""
         return tree.exists('.treeinfo')
 
-    @lru_cache()
+    @functools.lru_cache()
     def readinfo(self, filename):
         """Read a .INI format configuration file"""
-        info = ConfigParser()
-        info.readfp(StringIO(self.tree.read(filename)))
+        info = configparser.ConfigParser()
+        info.read_string(self.tree.read(filename).decode())
         return info
 
     @property

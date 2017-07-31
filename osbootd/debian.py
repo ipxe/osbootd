@@ -1,10 +1,10 @@
 """A Debian distribution"""
 
+import functools
 import logging
 import re
 from collections import defaultdict
 
-from cachetools.func import lru_cache
 from werkzeug.wrappers import Response
 from osbootd.distro import Distro
 
@@ -20,11 +20,11 @@ class DebianDistro(Distro):
         return tree.exists('.disk/info')
 
     @property
-    @lru_cache()
+    @functools.lru_cache()
     def diskinfo(self):
         """Read the disk information file"""
         m = re.match(r'^(?P<name>.+)\s(?P<version>\d[\d\.]*)',
-                     self.tree.read('.disk/info'))
+                     self.tree.read('.disk/info').decode())
         return m.groupdict() if m else defaultdict(str)
 
     @property

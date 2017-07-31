@@ -1,11 +1,11 @@
 """An Ubuntu distribution"""
 
+import functools
+import io
 import logging
 import re
 from collections import defaultdict
-from cStringIO import StringIO
 
-from cachetools.func import lru_cache
 from werkzeug.wrappers import Response
 from osbootd.debian import DebianDistro
 
@@ -21,11 +21,11 @@ class UbuntuDistro(DebianDistro):
         return tree.exists('README.diskdefines')
 
     @property
-    @lru_cache()
+    @functools.lru_cache()
     def diskdefines(self):
         """Read the disk definition file"""
         defs = defaultdict(str)
-        for line in StringIO(self.tree.read('README.diskdefines')):
+        for line in io.StringIO(self.tree.read('README.diskdefines').decode()):
             m = re.match(r'^\s*#define\s+(?P<key>\w+)\s+(?P<val>.+?)\s*$', line)
             if m:
                 defs[m.group('key')] = m.group('val')

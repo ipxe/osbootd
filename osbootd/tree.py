@@ -8,16 +8,16 @@ import errno
 import logging
 import mimetypes
 import os
+import stat
 import threading
 import zlib
 from datetime import datetime
-from stat import S_ISDIR, S_ISLNK
 from time import time
 
+import glob2
 import iso9660
 import pyiso9660
 import pycdio
-from glob2 import Globber
 from werkzeug.exceptions import NotFound, Forbidden
 from werkzeug.http import is_resource_modified, http_date
 from werkzeug.wrappers import BaseResponse
@@ -28,16 +28,7 @@ logger = logging.getLogger(__name__)
 CACHE_MAX_AGE = (60 * 60 * 12)
 
 
-class FileNotFoundError(OSError, IOError):
-    """Exception representing a nonexistent file or directory
-
-    Some callers check for OSError, others for IOError.  This messy
-    situation was resolved in PEP3151 for Python 3.3, but a workaround
-    is required for earlier versions.
-    """
-
-
-class DirectoryTree(Globber):
+class DirectoryTree(glob2.Globber):
     """An abstract directory tree"""
 
     def __init__(self, root):
@@ -82,11 +73,11 @@ class RawTree(DirectoryTree):
 
     def isdir(self, path):
         """Check if path is a directory"""
-        return S_ISDIR(os.stat(os.path.join(self.root, path)).st_mode)
+        return stat.S_ISDIR(os.stat(os.path.join(self.root, path)).st_mode)
 
     def islink(self, path):
         """Check if path is a symbolic link"""
-        return S_ISLNK(os.stat(os.path.join(self.root, path)).st_mode)
+        return stat.S_ISLNK(os.stat(os.path.join(self.root, path)).st_mode)
 
     def read(self, path):
         """Read a (small) file"""
@@ -106,7 +97,7 @@ class IsoTree(DirectoryTree):
         self.lock = threading.Lock()
         st_mtime = os.fstat(self.fh.fileno()).st_mtime
         self.mtime = datetime.fromtimestamp(st_mtime)
-        self.etag = ('%s-%08x' % (st_mtime, zlib.adler32(self.root)))
+        self.etag = ('%s-%08x' % (st_mtime, zlib.adler32(self.root.encode())))
 
     def __del__(self):
         self.fh.close()
@@ -156,14 +147,14 @@ class IsoTree(DirectoryTree):
         """Read a (small) file"""
         stat = self.isostat(path)
         with self.lock:
-            _psize, data = self.iso.seek_read(stat['LSN'], stat['sec_size'])
-        return data[:stat['size']]
+            self.fh.seek(stat['LSN'] * pycdio.ISO_BLOCKSIZE)
+            return self.fh.read(stat['size'])
 
     def ep_file(self, request, _urls, path=''):
         """Read a file via WSGI"""
 
         # Check for unmodified requests
-        etag = ('%s-%08x' % (self.etag, zlib.adler32(path)))
+        etag = ('%s-%08x' % (self.etag, zlib.adler32(path.encode())))
         headers = [
             ('Date', http_date()),
             ('Etag', ('"%s"' % etag)),
@@ -174,7 +165,7 @@ class IsoTree(DirectoryTree):
             return BaseResponse(status=304, headers=headers)
 
         # Check for nonexistent files and for directories
-        stat = self.isostat(path.encode())
+        stat = self.isostat(path)
         if stat is None:
             raise NotFound()
         if stat['is_dir']:
